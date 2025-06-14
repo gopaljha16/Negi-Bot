@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { NavLink } from "react-router";
-import { Bot, Menu, X, Sparkles } from "lucide-react";
+import { Bot, Menu, X, Sparkles , Github  } from "lucide-react";
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,6 +18,7 @@ const Navbar = () => {
   const navItems = [
     { to: "/", label: "Home", icon: "🏠" },
     { to: "/chat", label: "AI Chat", icon: "🤖" },
+    {to:"https://github.com/gopaljha16/Negi-Bot" , icon: <Github/>}
   ];
 
   return (

@@ -8,10 +8,7 @@ const voiceRouter = require("./routes/voice")
 const cors = require("cors");
 const liveRouter = require("./routes/live");
 
-app.use(cors({
-    origin: 'http://localhost:5173',
-    credentials: true
-}))
+app.use(cors({ origin: "*", credentials: true }));
 
 
 
