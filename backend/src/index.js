@@ -8,7 +8,7 @@ const voiceRouter = require("./routes/voice")
 const cors = require("cors");
 const liveRouter = require("./routes/live");
 
-app.use(cors({ origin: "*", credentials: true }));
+app.use(cors({ origin: "https://negi-bot.vercel.app", credentials: true }));
 
 
 
