@@ -60,7 +60,7 @@ const Home = () => {
 
   const testimonials = [
     {
-      name: "Sarah Johnson",
+      name: "Shrey Goel",
       role: "Product Manager at TechCorp",
       content:
         "NegiBot has revolutionized how our team communicates. It's like having a genius assistant available 24/7. The intelligence and responsiveness are unmatched.",
@@ -68,7 +68,7 @@ const Home = () => {
       avatar: "SJ",
     },
     {
-      name: "Alex Chen",
+      name: "Gopal Jha",
       role: "Software Engineer",
       content:
         "The most intuitive AI I've ever used. Rohit Negi's creation is truly remarkable - it understands context better than any other AI assistant.",

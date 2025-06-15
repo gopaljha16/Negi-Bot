@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Bot, User, Loader2, Copy, Check, Plus, MessageSquare, Sparkles, Code } from "lucide-react";
+import { Send, Bot, User, Loader2, Copy, Check, Volume2, VolumeX, Code } from "lucide-react";
 import axiosClient from "../utils/axiosClient";
 import TextareaAutosize from "react-textarea-autosize";
 
@@ -12,46 +12,114 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [speakingId, setSpeakingId] = useState(null);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const currentUtterance = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
+  // Clean up speech synthesis on component unmount
+  useEffect(() => {
+    return () => {
+      if (currentUtterance.current) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   const isCodeBlock = (text) => {
     return text.includes('```') || text.includes('function') || text.includes('const ') || 
            text.includes('import ') || text.includes('class ') || text.includes('def ') ||
-           text.includes('<') && text.includes('>') || text.includes('SELECT') || text.includes('FROM');
+           (text.includes('<') && text.includes('>') && text.includes('/')) || 
+           text.includes('SELECT') || text.includes('FROM') || text.includes('console.log');
   };
 
-  const formatCodeBlock = (text) => {
-    if (!isCodeBlock(text)) return text;
-    
-    // Handle markdown code blocks
-    if (text.includes('```')) {
-      return text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        return `<pre><code class="language-${lang || 'javascript'}">${code.trim()}</code></pre>`;
-      });
+  const cleanTextForSpeech = (text) => {
+    // Remove markdown code blocks and HTML tags
+    let cleanText = text.replace(/```[\s\S]*?```/g, '');
+    cleanText = cleanText.replace(/<[^>]*>/g, '');
+    cleanText = cleanText.replace(/[#*_`]/g, '');
+    cleanText = cleanText.replace(/⚠️|👋|🎉|🚀|💡/g, ''); // Remove emojis
+    return cleanText.trim();
+  };
+
+  const speakText = async (text, messageId) => {
+    if (!('speechSynthesis' in window)) {
+      alert('Text-to-speech is not supported in your browser');
+      return;
     }
-    
-    // If it looks like code but doesn't have markdown, wrap it
-    if (text.length > 50 && (text.includes('function') || text.includes('const ') || text.includes('import '))) {
-      return `<pre><code class="language-javascript">${text}</code></pre>`;
+
+    // Stop any ongoing speech
+    if (currentUtterance.current) {
+      speechSynthesis.cancel();
+      setSpeakingId(null);
     }
-    
-    return text;
+
+    // If clicking the same message that's speaking, just stop
+    if (speakingId === messageId) {
+      return;
+    }
+
+    const cleanText = cleanTextForSpeech(text);
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    currentUtterance.current = utterance;
+
+    // Get available voices and select a male voice
+    const voices = speechSynthesis.getVoices();
+    const maleVoice = voices.find(voice => 
+      voice.name.toLowerCase().includes('male') || 
+      voice.name.toLowerCase().includes('david') ||
+      voice.name.toLowerCase().includes('mark') ||
+      voice.gender === 'male'
+    ) || voices.find(voice => voice.lang.startsWith('en'));
+
+    if (maleVoice) {
+      utterance.voice = maleVoice;
+    }
+
+    utterance.rate = 0.9;
+    utterance.pitch = 0.8;
+    utterance.volume = 0.8;
+
+    utterance.onstart = () => {
+      setSpeakingId(messageId);
+    };
+
+    utterance.onend = () => {
+      setSpeakingId(null);
+      currentUtterance.current = null;
+    };
+
+    utterance.onerror = () => {
+      setSpeakingId(null);
+      currentUtterance.current = null;
+    };
+
+    speechSynthesis.speak(utterance);
   };
 
   const copyToClipboard = async (text, id) => {
     try {
-      // Extract code from HTML if it's a code block
-      const codeMatch = text.match(/<code[^>]*>([\s\S]*?)<\/code>/);
-      const textToCopy = codeMatch ? codeMatch[1] : text;
+      // Extract code from code blocks if present
+      const codeBlockRegex = /```[\s\S]*?```/g;
+      const codeBlocks = text.match(codeBlockRegex);
+      
+      let textToCopy = text;
+      if (codeBlocks && codeBlocks.length > 0) {
+        // If there are code blocks, copy the first one without the markdown
+        textToCopy = codeBlocks[0].replace(/```\w*\n?/g, '').replace(/```/g, '').trim();
+      }
       
       await navigator.clipboard.writeText(textToCopy);
       setCopiedId(id);
@@ -63,7 +131,7 @@ const Chat = () => {
 
   const sendMessage = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || isTyping) return;
 
     const userMsg = {
       sender: "user",
@@ -77,22 +145,35 @@ const Chat = () => {
     setIsTyping(true);
 
     try {
+      // Make actual API call to your backend
       const response = await axiosClient.post("/chat/ask", { message: trimmed });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
+      
       const botResponse = {
         sender: "bot",
-        text: response?.data?.reply || `Here's a sample response for: "${trimmed}"\n\n\`\`\`javascript\nconst response = {\n  message: "${trimmed}",\n  status: "success",\n  data: {\n    result: "processed"\n  }\n};\n\nconsole.log(response);\n\`\`\``,
+        text: response?.data?.reply || response?.data?.message || "I'm having trouble responding right now. Please try again.",
         id: Date.now() + 1,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setMessages(prev => [...prev, botResponse]);
+      
     } catch (err) {
-      console.error(err);
+      console.error('API Error:', err);
+      
+      let errorMessage = "⚠️ Oops! Something went wrong. Please try again.";
+      
+      // Handle different types of errors
+      if (err.response?.status === 404) {
+        errorMessage = "⚠️ API endpoint not found. Please check your backend configuration.";
+      } else if (err.response?.status === 500) {
+        errorMessage = "⚠️ Server error. Please try again in a moment.";
+      } else if (err.code === 'NETWORK_ERROR') {
+        errorMessage = "⚠️ Network error. Please check your connection.";
+      }
+      
       const errorMsg = {
         sender: "bot",
-        text: "⚠️ Oops! Something went wrong. Please try again.",
+        text: errorMessage,
         id: Date.now() + 1,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
@@ -107,12 +188,6 @@ const Chat = () => {
       e.preventDefault();
       sendMessage();
     }
-  };
-
-  const startNewChat = () => {
-    setMessages([
-      { sender: "bot", text: "Hey! I'm NegiBot. Ask me anything 👋", id: Date.now() }
-    ]);
   };
 
   const containerVariants = {
@@ -157,50 +232,17 @@ const Chat = () => {
   };
 
   return (
-    <div className="min-h-screen mt-20 bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex">
-      {/* Sidebar */}
-    
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <motion.div
-          className="p-6 border-b border-purple-500/20 bg-slate-900/30 backdrop-blur-xl"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <motion.div
-                className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center"
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Bot className="w-6 h-6 text-white" />
-              </motion.div>
-              <div>
-                <h2 className="text-xl font-bold text-white">NegiBot Assistant</h2>
-                <p className="text-purple-300 text-sm">Always ready to help</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">Online</span>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Messages Area */}
-        <motion.div
-          className="flex-1 overflow-hidden"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <div
+    <div className="min-h-screen pt-20 bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
+      <div className="h-[calc(100vh-5rem)] flex flex-col max-w-7xl mx-auto">
+        
+        {/* Messages Area - Adjusted for navbar */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <motion.div
             ref={chatContainerRef}
             className="h-full overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
           >
             <AnimatePresence mode="popLayout">
               {messages.map((msg) => (
@@ -242,26 +284,47 @@ const Chat = () => {
                       boxShadow: "0 8px 25px rgba(0,0,0,0.2)"
                     }}
                   >
-                    {/* Copy Button */}
-                    <motion.button
-                      onClick={() => copyToClipboard(msg.text, msg.id)}
-                      className={`absolute top-2 right-2 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
-                        msg.sender === "user" 
-                          ? "bg-blue-700/50 hover:bg-blue-600/50" 
-                          : "bg-slate-700/50 hover:bg-slate-600/50"
-                      }`}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      {copiedId === msg.id ? (
-                        <Check className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4 text-slate-300" />
-                      )}
-                    </motion.button>
+                    {/* Action Buttons */}
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Text-to-Speech Button */}
+                      <motion.button
+                        onClick={() => speakText(msg.text, msg.id)}
+                        className={`p-2 rounded-lg ${
+                          msg.sender === "user" 
+                            ? "bg-blue-700/50 hover:bg-blue-600/50" 
+                            : "bg-slate-700/50 hover:bg-slate-600/50"
+                        } ${speakingId === msg.id ? 'ring-2 ring-purple-400' : ''}`}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        {speakingId === msg.id ? (
+                          <VolumeX className="w-4 h-4 text-purple-400" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-slate-300" />
+                        )}
+                      </motion.button>
+
+                      {/* Copy Button */}
+                      <motion.button
+                        onClick={() => copyToClipboard(msg.text, msg.id)}
+                        className={`p-2 rounded-lg ${
+                          msg.sender === "user" 
+                            ? "bg-blue-700/50 hover:bg-blue-600/50" 
+                            : "bg-slate-700/50 hover:bg-slate-600/50"
+                        }`}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        {copiedId === msg.id ? (
+                          <Check className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-slate-300" />
+                        )}
+                      </motion.button>
+                    </div>
 
                     {/* Message Content */}
-                    <div className="pr-10">
+                    <div className="pr-16">
                       {isCodeBlock(msg.text) ? (
                         <div className="space-y-3">
                           {msg.text.split('```').map((part, index) => {
@@ -345,12 +408,12 @@ const Chat = () => {
             </AnimatePresence>
 
             <div ref={messagesEndRef} />
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
         {/* Input Area */}
         <motion.div
-          className="p-6 border-t border-purple-500/20 bg-slate-900/30 backdrop-blur-xl"
+          className="flex-shrink-0 p-6 border-t border-purple-500/20 bg-slate-900/30 backdrop-blur-xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.5 }}
