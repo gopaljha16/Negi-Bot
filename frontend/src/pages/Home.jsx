@@ -268,29 +268,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 lg:py-32 px-4">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-lg border border-purple-500/30 rounded-3xl p-8 lg:p-16">
-            <h2 className="text-3xl sm:text-4xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Ready to Transform Your Workflow?
-            </h2>
-            <p className="text-lg sm:text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-              Join thousands of users who've already discovered the power of
-              NegiBot. Start your AI-powered journey today.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:scale-105 transition-all duration-300 font-semibold text-lg shadow-2xl hover:shadow-purple-500/25">
-                Get Started Free
-                <ArrowRight className="w-5 h-5 ml-2 inline" />
-              </button>
-              <button className="px-8 py-4 border-2 border-purple-500 text-purple-300 rounded-lg hover:bg-purple-500 hover:text-white hover:scale-105 transition-all duration-300 font-semibold text-lg">
-                Schedule Demo
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* Footer */}
       <footer className="bg-slate-900/50 backdrop-blur-lg border-t border-purple-500/20 py-12 lg:py-16">
