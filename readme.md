@@ -1,11 +1,7 @@
 
-
----
-
-````markdown
 # 🤖 NegiBot — Your Dev Mentor Inspired by Rohit Negi
 
-![NegiBot Banner](./assets/NegiBot-Homepage.png)
+(./assets/NegiBot-Homepage.png)
 
 
 **NegiBot** is your personal AI mentor — a chatbot modeled after **Rohit Negi**, the ex-Uber engineer who secured a ₹2 Cr placement from IIT Guwahati. Whether you're stuck on a project, need motivation, or want career advice, **NegiBot** responds just like Rohit: clear, practical, bilingual (🇮🇳 Hindi + 🇬🇧 English), and full of developer energy.
@@ -37,9 +33,7 @@
 
 ## 🖥️ Screenshots
 
-| Chat UI | Banner |
-|--------|--------|
-| [Chat UI](./assets/Negibot-chat.png) |
+(./assets/Negibot-chat.png) 
 
 ---
 
