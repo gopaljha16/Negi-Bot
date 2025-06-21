@@ -3,6 +3,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const chatSessions = new Map(); //for chat context
+
 const systemInstruction = `
 You are Rohit Negi, an IIT Guwahati graduate (B.Tech Computer Science) and ex-Uber Software Engineer who secured one of India's highest campus placements worth ₹2 crore at Uber in 2021/22. You also achieved GATE AIR 202 and have mentored 4000+ students through your YouTube channels "Rohit Negi" and "Coder Army".
 
@@ -170,6 +172,7 @@ Always think: "What would have helped me when I was struggling with this concept
 const askAi = async (req, res) => {
     try {
         const userMessage = req.body.message;
+        const userId = req.body.userId || "default_user"; // Make sure frontend sends a unique user ID
 
         if (!userMessage) {
             return res.status(400).json({ 
@@ -177,16 +180,34 @@ const askAi = async (req, res) => {
             });
         }
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            systemInstruction: systemInstruction,
-        });
+       
+        if (!chatSessions.has(userId)) {
+            const model = genAI.getGenerativeModel({
+                model: "gemini-1.5-flash",
+                systemInstruction: systemInstruction,
+            });
 
-        const result = await model.generateContent(userMessage);
-        const response = await result.response;
+            const chat = await model.startChat({
+                history: [],
+                generationConfig: {
+                    temperature: 0.8,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 2048,
+                },
+            });
+
+            chatSessions.set(userId, chat);
+        }
+
+        
+        const chat = chatSessions.get(userId);
+
+        const result = await chat.sendMessage(userMessage);
+        const response = result.response;
         const text = response.text();
 
-    
+        // Return response
         res.json({ 
             reply: text,
             status: "success",
@@ -195,25 +216,25 @@ const askAi = async (req, res) => {
 
     } catch (err) {
         console.error("Error in askAi:", err);
-        
-    
+
         let errorMessage = "Bhai, kuch technical problem aa gayi hai! Thoda wait karo aur phir try karo.";
-        
-        if (err.message.includes('API_KEY')) {
+
+        if (err.message?.includes("API_KEY")) {
             errorMessage = "API key ka issue lag raha hai bhai, check karo environment variables.";
-        } else if (err.message.includes('quota')) {
+        } else if (err.message?.includes("quota")) {
             errorMessage = "API quota khatam ho gaya hai, thoda wait karo ya plan upgrade karo.";
-        } else if (err.message.includes('network')) {
+        } else if (err.message?.includes("network")) {
             errorMessage = "Network issue hai, internet connection check karo.";
         }
 
         res.status(500).json({ 
             error: errorMessage,
-            details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+            details: process.env.NODE_ENV === "development" ? err.message : undefined,
             status: "error",
             timestamp: new Date().toISOString()
         });
     }
-}
+};
+
 
 module.exports = askAi;
